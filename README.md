@@ -117,26 +117,32 @@ flowchart LR
 
 ### Prerequisites
 
-- Python **3.9+**
-- A webcam (optional, for live detection)
-- ~2 GB free disk space (PyTorch + dependencies)
+* Python **3.9+**
+* A webcam (optional, for live detection)
+* ~2 GB free disk space (PyTorch + dependencies)
 
 ### 1. Clone the Repository
 
 ```bash
 git clone https://github.com/AaratiGiri/License-Plate-Detector.git
-
+cd License-Plate-Detector
 ```
 
 ### 2. Create a Virtual Environment
 
 ```bash
 python -m venv .venv
+```
 
-# Windows
-.venv\Scripts\activate
+**Windows PowerShell:**
 
-# macOS / Linux
+```powershell
+.\.venv\Scripts\Activate.ps1
+```
+
+**macOS / Linux:**
+
+```bash
 source .venv/bin/activate
 ```
 
@@ -148,6 +154,7 @@ pip install -r requirements.txt
 
 > **requirements.txt** includes:
 > `Flask` · `ultralytics` · `opencv-python` · `easyocr` · `PyYAML` · `torch`
+
 
 ### 4. Add the Model
 
@@ -258,12 +265,6 @@ Contributions are welcome! Here's how to get started:
 3. **Commit** your changes: `git commit -m 'Add amazing feature'`
 4. **Push** to the branch: `git push origin feature/amazing-feature`
 5. **Open** a Pull Request
-
----
-
-## 📜 License
-
-This project is licensed under the **MIT License** — feel free to use, modify, and distribute it.
 
 ---
 
