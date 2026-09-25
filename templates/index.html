@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="AI-powered vehicle license plate detection system using YOLOv8 and EasyOCR. Upload videos, images, or use live webcam for real-time plate recognition.">
+
+    <title>License Plate Detection — AI Vehicle Monitor</title>
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body>
+
+    <!-- ═══════════════════════════════════════════
+         HEADER
+    ═══════════════════════════════════════════ -->
+
+    <header>
+        <div class="container">
+
+            <div class="header-badge">
+                <span class="header-dot"></span>
+                YOLOv8 + EasyOCR
+            </div>
+
+            <h1>License Plate Detection</h1>
+
+            <p>AI-powered vehicle monitoring — upload a video, photo, or use your live webcam to detect and record license plates automatically.</p>
+
+            <div class="stats-bar" id="statsBar">
+
+                <div class="stat-chip">
+                    <span class="stat-icon">🔍</span>
+                    <div class="stat-info">
+                        <span class="stat-value" id="statTotal">—</span>
+                        <span class="stat-label">Detections</span>
+                    </div>
+                </div>
+
+                <div class="stat-chip">
+                    <span class="stat-icon">🔤</span>
+                    <div class="stat-info">
+                        <span class="stat-value" id="statPlates">—</span>
+                        <span class="stat-label">Plates Read</span>
+                    </div>
+                </div>
+
+                <div class="stat-chip">
+                    <span class="stat-icon">📹</span>
+                    <div class="stat-info">
+                        <span class="stat-value" id="statSource">—</span>
+                        <span class="stat-label">Last Source</span>
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+    </header>
+
+
+    <!-- ═══════════════════════════════════════════
+         MAIN
+    ═══════════════════════════════════════════ -->
+
+    <main class="container">
+
+
+        <!-- Flash Messages -->
+        {% with messages = get_flashed_messages() %}
+        {% if messages %}
+        <div class="messages">
+            {% for message in messages %}
+            <div class="message">⚠️ {{ message }}</div>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% endwith %}
+
+
+        <!-- ── Two-Column Grid ── -->
+        <section class="grid">
+
+
+            <!-- ════════════════════════════════
+                 CARD 1 — IMAGE / VIDEO UPLOAD
+            ════════════════════════════════ -->
+
+            <div class="card" style="animation-delay: 0s;">
+
+                <h2>
+                    <span class="card-icon">📤</span>
+                    Upload & Detect
+                </h2>
+
+                <p>Upload a vehicle image or recorded road video for license plate detection.</p>
+
+
+                <form id="uploadForm"
+                      action="/upload"
+                      method="POST"
+                      enctype="multipart/form-data"
+                      onsubmit="handleUploadSubmit(event)">
+
+
+                    <!-- Drag & Drop Zone -->
+                    <div class="upload-zone"
+                         id="uploadZone"
+                         ondragover="handleDragOver(event)"
+                         ondragleave="handleDragLeave(event)"
+                         ondrop="handleDrop(event)">
+
+                        <input type="file"
+                               id="mediaInput"
+                               name="media"
+                               accept="image/jpeg,image/png,video/mp4,video/avi,video/quicktime,video/webm,video/x-msvideo,video/x-matroska"
+                               onchange="handleFileSelect(this)"
+                               required>
+
+                        <span class="upload-icon">☁️</span>
+
+                        <div class="upload-zone-text">
+                            <strong>Drag & drop</strong> a file here<br>
+                            or <strong>click to browse</strong><br>
+                            <small style="color: var(--text-muted); font-size: 11px;">
+                                JPG · PNG · MP4 · AVI · MOV · MKV · WEBM
+                            </small>
+                        </div>
+
+                        <div class="upload-filename" id="uploadFilename"></div>
+
+                    </div>
+
+
+                    <!-- Progress Bar -->
+                    <div class="upload-progress" id="uploadProgress">
+                        <div style="display:flex; justify-content:space-between; font-size:12px; color:var(--text-muted); margin-bottom:6px;">
+                            <span>Uploading & processing…</span>
+                            <span id="progressPct">0%</span>
+                        </div>
+                        <div class="progress-track">
+                            <div class="progress-fill" id="progressFill"></div>
+                        </div>
+                    </div>
+
+
+                    <!-- Submit -->
+                    <button type="submit" class="primary-button" id="uploadBtn">
+                        <span class="spinner" id="uploadSpinner"></span>
+                        <span id="uploadBtnText">🚀 Upload &amp; Detect</span>
+                    </button>
+
+
+                </form>
+
+
+                <!-- ── IMAGE RESULT ── -->
+                {% if image_file %}
+                <div style="margin-top: 22px;">
+                    <div class="stream-wrapper">
+                        <img class="video-stream"
+                             src="/uploads/{{ image_file }}"
+                             alt="Detection result image">
+                        <div class="stream-label">📸 Image Detection Result</div>
+                    </div>
+                </div>
+                {% endif %}
+
+
+                <!-- ── VIDEO RESULT ── -->
+                {% if video_file %}
+                <div style="margin-top: 22px;">
+                    <div class="stream-wrapper">
+                        <img class="video-stream"
+                             id="videoStream"
+                             src="/video_feed/{{ video_file }}"
+                             alt="Video detection stream">
+                        <div class="live-badge active">
+                            <span class="live-dot"></span>
+                            Processing
+                        </div>
+                        <div class="stream-label">🎬 Video Detection Stream</div>
+                    </div>
+                </div>
+                {% endif %}
+
+            </div>
+
+
+            <!-- ════════════════════════════════
+                 CARD 2 — LIVE WEBCAM
+            ════════════════════════════════ -->
+
+            <div class="card" style="animation-delay: 0.1s;">
+
+                <h2>
+                    <span class="card-icon">📷</span>
+                    Live Webcam
+                </h2>
+
+                <p>Stream your webcam for real-time vehicle license plate detection.</p>
+
+
+                <div class="button-row">
+
+                    <button class="primary-button" id="startBtn" onclick="startWebcam()">
+                        ▶ Start Camera
+                    </button>
+
+                    <button class="secondary-button" id="stopBtn" onclick="stopWebcam()" disabled>
+                        ⏹ Stop Camera
+                    </button>
+
+                </div>
+
+
+                <div class="stream-wrapper">
+
+                    <!-- LIVE Badge -->
+                    <div class="live-badge" id="liveBadge">
+                        <span class="live-dot"></span>
+                        LIVE
+                    </div>
+
+                    <!-- Placeholder shown when webcam is off -->
+                    <div class="stream-placeholder" id="webcamPlaceholder">
+                        <span class="stream-placeholder-icon">📹</span>
+                        <span>Click "Start Camera" to begin</span>
+                    </div>
+
+                    <!-- MJPEG stream -->
+                    <img id="webcamStream"
+                         class="video-stream"
+                         alt="Live webcam feed"
+                         style="display: none;">
+
+                </div>
+
+            </div>
+
+
+        </section>
+
+
+        <!-- ════════════════════════════════════════
+             DETECTION HISTORY TABLE
+        ════════════════════════════════════════ -->
+
+        <section class="card history-card">
+
+            <div class="history-header">
+
+                <div>
+                    <h2>
+                        <span class="card-icon">🗂️</span>
+                        Detection History
+                        <span class="refresh-dot" id="refreshDot"></span>
+                    </h2>
+                    <p id="historySubtitle">Showing last 30 detections — auto-refreshes every 3 seconds.</p>
+                </div>
+
+                <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+
+                    <button id="showAllBtn" onclick="toggleShowAll()" class="download-button" style="border-color:rgba(79,142,247,0.35); color:#60a5fa; background:rgba(79,142,247,0.08); cursor:pointer;">
+                        📋 Show All
+                    </button>
+
+                    <a href="/download_csv" class="download-button">
+                        ⬇️ Download CSV
+                    </a>
+
+                    <form method="POST" action="/clear_history" onsubmit="return confirm('⚠️ This will permanently delete all detection records and plate images. Are you sure?')">
+                        <button type="submit" class="download-button" style="border-color:rgba(239,68,68,0.35); color:#f87171; background:rgba(239,68,68,0.08); cursor:pointer;">
+                            🗑️ Clear History
+                        </button>
+                    </form>
+
+                </div>
+
+
+            </div>
+
+
+            <div class="table-wrapper">
+
+                <table>
+
+                    <thead>
+                        <tr>
+                            <th>Time</th>
+                            <th>Source</th>
+                            <th>Confidence</th>
+                            <th>Plate Text</th>
+                            <th>Plate Image</th>
+                        </tr>
+                    </thead>
+
+                    <tbody id="recordTable">
+
+                        {% if records %}
+
+                            {% for record in records %}
+                            <tr>
+
+                                <td style="white-space: nowrap; font-size: 12.5px;">
+                                    {{ record.timestamp }}
+                                </td>
+
+                                <td>
+                                    {% set src = record.source %}
+                                    {% if 'webcam' in src %}
+                                        <span class="source-badge source-webcam">📷 Webcam</span>
+                                    {% elif 'video' in src %}
+                                        <span class="source-badge source-video">🎬 Video</span>
+                                    {% else %}
+                                        <span class="source-badge source-image">📸 Image</span>
+                                    {% endif %}
+                                </td>
+
+                                <td>
+                                    {% set conf = record.confidence | float %}
+                                    {% if conf >= 0.75 %}
+                                        <span class="confidence-badge confidence-high">{{ "%.1f"|format(conf * 100) }}%</span>
+                                    {% elif conf >= 0.50 %}
+                                        <span class="confidence-badge confidence-mid">{{ "%.1f"|format(conf * 100) }}%</span>
+                                    {% else %}
+                                        <span class="confidence-badge confidence-low">{{ "%.1f"|format(conf * 100) }}%</span>
+                                    {% endif %}
+                                </td>
+
+                                <td>
+                                    {% if record.plate_text %}
+                                        <span class="plate-text-cell">{{ record.plate_text }}</span>
+                                    {% else %}
+                                        <span class="plate-text-empty">—</span>
+                                    {% endif %}
+                                </td>
+
+                                <td>
+                                    {% if record.plate_image %}
+                                        <img class="plate-preview"
+                                             src="/detected/{{ record.plate_image }}"
+                                             alt="Plate crop"
+                                             title="{{ record.plate_text }}">
+                                    {% endif %}
+                                </td>
+
+                            </tr>
+                            {% endfor %}
+
+                        {% else %}
+
+                            <tr>
+                                <td colspan="5">
+                                    <div class="empty-state">
+                                        <span class="empty-state-icon">🔍</span>
+                                        <p>No detections yet — upload a file or start the webcam.</p>
+                                    </div>
+                                </td>
+                            </tr>
+
+                        {% endif %}
+
+                    </tbody>
+
+                </table>
+
+            </div>
+
+        </section>
+
+
+    </main>
+
+
+    <!-- ═══════════════════════════════════════════
+         FOOTER
+    ═══════════════════════════════════════════ -->
+
+    <footer>
+        <span>License Plate Detection</span> &nbsp;·&nbsp;
+        YOLOv8 + EasyOCR &nbsp;·&nbsp; Flask
+    </footer>
+
+
+    <!-- ═══════════════════════════════════════════
+         JAVASCRIPT
+    ═══════════════════════════════════════════ -->
+
+    <script>
+
+        /* ─────────────────────────────────
+           DRAG & DROP
+        ───────────────────────────────── */
+
+        function handleDragOver(event) {
+            event.preventDefault();
+            document.getElementById('uploadZone').classList.add('dragover');
+        }
+
+        function handleDragLeave(event) {
+            document.getElementById('uploadZone').classList.remove('dragover');
+        }
+
+        function handleDrop(event) {
+            event.preventDefault();
+            document.getElementById('uploadZone').classList.remove('dragover');
+            const files = event.dataTransfer.files;
+            if (files.length > 0) {
+                const input = document.getElementById('mediaInput');
+                input.files = files;
+                handleFileSelect(input);
+            }
+        }
+
+        function handleFileSelect(input) {
+            const zone = document.getElementById('uploadZone');
+            const label = document.getElementById('uploadFilename');
+            if (input.files && input.files.length > 0) {
+                const name = input.files[0].name;
+                label.textContent = '📎 ' + name;
+                label.style.display = 'block';
+                zone.classList.add('dragover');
+            }
+        }
+
+
+        /* ─────────────────────────────────
+           UPLOAD FORM SUBMIT
+        ───────────────────────────────── */
+
+        function handleUploadSubmit(event) {
+            const btn     = document.getElementById('uploadBtn');
+            const spinner = document.getElementById('uploadSpinner');
+            const btnText = document.getElementById('uploadBtnText');
+            const prog    = document.getElementById('uploadProgress');
+            const fill    = document.getElementById('progressFill');
+            const pct     = document.getElementById('progressPct');
+
+            // Show spinner + progress
+            spinner.style.display = 'block';
+            btnText.textContent   = 'Processing…';
+            btn.disabled          = true;
+            prog.style.display    = 'block';
+
+            // Animate progress bar (indeterminate feel)
+            let width = 0;
+            const interval = setInterval(() => {
+                if (width < 88) {
+                    width += Math.random() * 4;
+                    fill.style.width = width + '%';
+                    pct.textContent  = Math.round(width) + '%';
+                }
+            }, 180);
+
+            // Store interval id to clear on page unload
+            window._uploadInterval = interval;
+        }
+
+
+        /* ─────────────────────────────────
+           WEBCAM
+        ───────────────────────────────── */
+
+        let webcamActive = false;
+
+        function startWebcam() {
+            const stream      = document.getElementById('webcamStream');
+            const placeholder = document.getElementById('webcamPlaceholder');
+            const badge       = document.getElementById('liveBadge');
+            const startBtn    = document.getElementById('startBtn');
+            const stopBtn     = document.getElementById('stopBtn');
+
+            stream.src = '/webcam_feed?t=' + Date.now();
+            stream.style.display   = 'block';
+            placeholder.style.display = 'none';
+            badge.classList.add('active');
+
+            startBtn.disabled = true;
+            stopBtn.disabled  = false;
+            webcamActive = true;
+        }
+
+        function stopWebcam() {
+            const stream      = document.getElementById('webcamStream');
+            const placeholder = document.getElementById('webcamPlaceholder');
+            const badge       = document.getElementById('liveBadge');
+            const startBtn    = document.getElementById('startBtn');
+            const stopBtn     = document.getElementById('stopBtn');
+
+            stream.src = '';
+            stream.style.display   = 'none';
+            placeholder.style.display = 'flex';
+            badge.classList.remove('active');
+
+            startBtn.disabled = false;
+            stopBtn.disabled  = true;
+            webcamActive = false;
+        }
+
+
+        /* ─────────────────────────────────
+           SOURCE BADGE HELPER
+        ───────────────────────────────── */
+
+        function sourceBadge(src) {
+            if (!src) return '<span class="source-badge source-image">📸 Image</span>';
+            const s = src.toLowerCase();
+            if (s.includes('webcam')) return '<span class="source-badge source-webcam">📷 Webcam</span>';
+            if (s.includes('video'))  return '<span class="source-badge source-video">🎬 Video</span>';
+            return '<span class="source-badge source-image">📸 Image</span>';
+        }
+
+
+        /* ─────────────────────────────────
+           CONFIDENCE BADGE HELPER
+        ───────────────────────────────── */
+
+        function confBadge(conf) {
+            const f   = parseFloat(conf) || 0;
+            const pct = (f * 100).toFixed(1) + '%';
+            if (f >= 0.75) return `<span class="confidence-badge confidence-high">${pct}</span>`;
+            if (f >= 0.50) return `<span class="confidence-badge confidence-mid">${pct}</span>`;
+            return `<span class="confidence-badge confidence-low">${pct}</span>`;
+        }
+
+
+        /* ─────────────────────────────────
+           SHOW ALL / SHOW RECENT TOGGLE
+        ───────────────────────────────── */
+
+        let showingAll = false;
+
+        function toggleShowAll() {
+            const btn      = document.getElementById('showAllBtn');
+            const subtitle = document.getElementById('historySubtitle');
+            showingAll = !showingAll;
+
+            if (showingAll) {
+                btn.textContent    = '🔼 Show Recent';
+                btn.style.color    = '#34d399';
+                btn.style.borderColor = 'rgba(34,211,165,0.35)';
+                btn.style.background  = 'rgba(34,211,165,0.08)';
+                subtitle.textContent  = 'Showing ALL detections — auto-refreshes every 3 seconds.';
+            } else {
+                btn.textContent    = '📋 Show All';
+                btn.style.color    = '#60a5fa';
+                btn.style.borderColor = 'rgba(79,142,247,0.35)';
+                btn.style.background  = 'rgba(79,142,247,0.08)';
+                subtitle.textContent  = 'Showing last 30 detections — auto-refreshes every 3 seconds.';
+            }
+
+            refreshRecords();
+        }
+
+
+        /* ─────────────────────────────────
+           AUTO-REFRESH DETECTION TABLE
+        ───────────────────────────────── */
+
+        let lastRecordCount = {{ records | length }};
+
+        async function refreshRecords() {
+            try {
+                const url      = showingAll ? '/api/records?limit=all' : '/api/records';
+                const response = await fetch(url);
+                if (!response.ok) return;
+                const records = await response.json();
+
+                const table = document.getElementById('recordTable');
+
+                if (records.length === 0) {
+                    table.innerHTML = `
+                        <tr>
+                            <td colspan="5">
+                                <div class="empty-state">
+                                    <span class="empty-state-icon">🔍</span>
+                                    <p>No detections yet — upload a file or start the webcam.</p>
+                                </div>
+                            </td>
+                        </tr>`;
+                    return;
+                }
+
+                const isNew = records.length !== lastRecordCount;
+                lastRecordCount = records.length;
+
+                table.innerHTML = '';
+
+                records.forEach((rec, i) => {
+                    const row = document.createElement('tr');
+                    if (isNew && i === 0) row.classList.add('new-row');
+
+                    const plateImg = rec.plate_image
+                        ? `<img class="plate-preview"
+                                src="/detected/${encodeURIComponent(rec.plate_image)}"
+                                alt="Plate"
+                                title="${rec.plate_text || ''}">`
+                        : '';
+
+                    const plateText = rec.plate_text
+                        ? `<span class="plate-text-cell">${rec.plate_text}</span>`
+                        : `<span class="plate-text-empty">—</span>`;
+
+                    row.innerHTML = `
+                        <td style="white-space:nowrap; font-size:12.5px;">${rec.timestamp}</td>
+                        <td>${sourceBadge(rec.source)}</td>
+                        <td>${confBadge(rec.confidence)}</td>
+                        <td>${plateText}</td>
+                        <td>${plateImg}</td>`;
+
+                    table.appendChild(row);
+                });
+
+                // Flash refresh dot
+                if (isNew) {
+                    const dot = document.getElementById('refreshDot');
+                    dot.classList.add('flash');
+                    setTimeout(() => dot.classList.remove('flash'), 800);
+                }
+
+            } catch (err) {
+                console.warn('Could not refresh records', err);
+            }
+        }
+
+
+        /* ─────────────────────────────────
+           STATS BAR
+        ───────────────────────────────── */
+
+        async function refreshStats() {
+            try {
+                const res  = await fetch('/api/stats');
+                if (!res.ok) return;
+                const data = await res.json();
+
+                document.getElementById('statTotal').textContent  = data.total   ?? '0';
+                document.getElementById('statPlates').textContent = data.plates  ?? '0';
+                document.getElementById('statSource').textContent = data.last_source ?? '—';
+
+            } catch (err) {
+                // silently ignore
+            }
+        }
+
+
+        /* ─────────────────────────────────
+           INIT — START POLLING
+        ───────────────────────────────── */
+
+        refreshRecords();
+        refreshStats();
+
+        setInterval(refreshRecords, 3000);
+        setInterval(refreshStats,   5000);
+
+    </script>
+
+</body>
+</html>
